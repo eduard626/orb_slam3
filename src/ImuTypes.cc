@@ -146,6 +146,7 @@ void Preintegrated::CopyFrom(Preintegrated* pImuPre)
 
 void Preintegrated::Initialize(const Bias &b_)
 {
+    // std::cout<<"New preintegrated "<<std::endl;
     dR.setIdentity();
     dV.setZero();
     dP.setZero();
@@ -162,6 +163,7 @@ void Preintegrated::Initialize(const Bias &b_)
     avgA.setZero();
     avgW.setZero();
     dT=0.0f;
+    // std::cout<<"DeltaT "<<dT<<std::endl;
     mvMeasurements.clear();
 }
 
@@ -192,6 +194,7 @@ void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration,
     acc << acceleration(0)-b.bax, acceleration(1)-b.bay, acceleration(2)-b.baz;
     accW << angVel(0)-b.bwx, angVel(1)-b.bwy, angVel(2)-b.bwz;
 
+    // std::cout<<"\tDeltaT "<<dT<<" dt "<<dt<<std::endl;
     avgA = (dT*avgA + dR*acc*dt)/(dT+dt);
     avgW = (dT*avgW + accW*dt)/(dT+dt);
 
@@ -232,6 +235,7 @@ void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration,
 
     // Total integrated time
     dT += dt;
+    // std::cout<<"\tDeltaT end "<<dT<<std::endl;
 }
 
 void Preintegrated::MergePrevious(Preintegrated* pPrev)

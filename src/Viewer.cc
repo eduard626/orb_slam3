@@ -314,7 +314,9 @@ void Viewer::Run()
             mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph, menuShowInertialGraph, menuShowOptLba);
         if(menuShowPoints)
             mpMapDrawer->DrawMapPoints();
-
+        
+        // pangolin::glDraw_z0(0.5, 1);
+        pangolin::glDrawAxis(1);
         pangolin::FinishFrame();
 
         cv::Mat toShow;

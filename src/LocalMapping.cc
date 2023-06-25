@@ -182,8 +182,10 @@ void LocalMapping::Run()
                 {
                     if (mbMonocular)
                         InitializeIMU(1e2, 1e10, true);
-                    else
+                    else{
+                        std::cout<<"Initialize imu!!!"<<std::endl;
                         InitializeIMU(1e2, 1e5, true);
+                    }
                 }
 
 
@@ -1197,6 +1199,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     KeyFrame* pKF = mpCurrentKeyFrame;
     while(pKF->mPrevKF)
     {
+        std::cout<<"Pushing "<<pKF->mnId<<" Wiht prev "<<pKF->mPrevKF->mnId<<std::endl;
         lpKF.push_front(pKF);
         pKF = pKF->mPrevKF;
     }
@@ -1243,6 +1246,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
         dirG = dirG/dirG.norm();
         Eigen::Vector3f gI(0.0f, 0.0f, -1.0f);
+        std::cout<<"dirG "<<dirG.transpose()<<std::endl;
         Eigen::Vector3f v = gI.cross(dirG);
         const float nv = v.norm();
         const float cosg = gI.dot(dirG);
@@ -1266,6 +1270,8 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     Optimizer::InertialOptimization(mpAtlas->GetCurrentMap(), mRwg, mScale, mbg, mba, mbMonocular, infoInertial, false, false, priorG, priorA);
 
+    std::cout<<"Biases \nGyro: "<<mbg.transpose()<<"\nAcce: "<<mba.transpose()<<std::endl;
+
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
     if (mScale<1e-1)
@@ -1279,6 +1285,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     {
         unique_lock<mutex> lock(mpAtlas->GetCurrentMap()->mMutexMapUpdate);
         if ((fabs(mScale - 1.f) > 0.00001) || !mbMonocular) {
+            std::cout<<"Gravity \n"<<mRwg<<std::endl;
             Sophus::SE3f Twg(mRwg.cast<float>().transpose(), Eigen::Vector3f::Zero());
             mpAtlas->GetCurrentMap()->ApplyScaledRotation(Twg, mScale, true);
             mpTracker->UpdateFrameIMU(mScale, vpKF[0]->GetImuBias(), mpCurrentKeyFrame);
@@ -1366,8 +1373,11 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
         if(pKF->bImu)
         {
             pKF->mVwbBefGBA = pKF->GetVelocity();
+            // std::cout<<"Kf "<<pKF->mnId<<std::endl;
             pKF->SetVelocity(pKF->mVwbGBA);
+            // std::cout<<"Vel "<<pKF->GetVelocity().transpose()<<std::endl;
             pKF->SetNewBias(pKF->mBiasGBA);
+            // std::cout<<"Biases "<<pKF->GetImuBias()<<std::endl;
         } else {
             cout << "KF " << pKF->mnId << " not set to inertial!! \n";
         }

@@ -1726,8 +1726,15 @@ void Tracking::PreintegrateIMU()
     }
 
     mCurrentFrame.mpImuPreintegratedFrame = pImuPreintegratedFromLastFrame;
+    // std::cout<<"avgA "<<mCurrentFrame.mpImuPreintegratedFrame->avgA.transpose()<<std::endl;
     mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
     mCurrentFrame.mpLastKeyFrame = mpLastKeyFrame;
+    // if(mState==OK){
+    //     std::cout<<"Frame "<<mCurrentFrame.mnId<<"\nPreintegrated ori "<<mpImuPreintegratedFromLastKF->GetOriginalBias()<<std::endl;
+    //     std::cout<<"Preintegrated dR  "<<mpImuPreintegratedFromLastKF->GetUpdatedDeltaRotation().transpose()<<std::endl;
+    //     std::cout<<"Preintegrated dV  "<<mpImuPreintegratedFromLastKF->GetUpdatedDeltaVelocity().transpose()<<std::endl;
+    //     std::cout<<"Preintegrated dP  "<<mpImuPreintegratedFromLastKF->GetUpdatedDeltaPosition().transpose()<<std::endl;
+    // }
 
     mCurrentFrame.setIntegrated();
 
@@ -1901,6 +1908,8 @@ void Tracking::Track()
         if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD)
         {
             StereoInitialization();
+            if(mState == OK)
+                SetStepByStep(true);
         }
         else
         {
@@ -2247,7 +2256,10 @@ void Tracking::Track()
             // if(bNeedKF && bOK)
             if(bNeedKF && (bOK || (mInsertKFsLost && mState==RECENTLY_LOST &&
                                    (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD))))
-                CreateNewKeyFrame();
+                {
+                    // std::cout<<"Need KF"<<std::endl;
+                    CreateNewKeyFrame();
+                }
 
 #ifdef REGISTER_TIMES
             std::chrono::steady_clock::time_point time_EndNewKF = std::chrono::steady_clock::now();
@@ -2344,9 +2356,10 @@ void Tracking::StereoInitialization()
                 return;
             }
 
-            if (!mFastInit && (mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA).norm()<0.5)
+            auto estimated_acc = (mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA).norm();
+            if (!mFastInit && estimated_acc<0.5)
             {
-                cout << "not enough acceleration" << endl;
+                // cout << "not enough acceleration" << estimated_acc<< endl;
                 return;
             }
 
@@ -2365,9 +2378,12 @@ void Tracking::StereoInitialization()
             Eigen::Vector3f Vwb0;
             Vwb0.setZero();
             mCurrentFrame.SetImuPoseVelocity(Rwb0, twb0, Vwb0);
+            std::cout<<"Set pose to "<<twb0.transpose()<<std::endl;
         }
-        else
+        // else
             mCurrentFrame.SetPose(Sophus::SE3f());
+
+        // std::cout<<mCurrentFrame.GetPose().translation().transpose()<<std::endl;
 
         // Create KeyFrame
         KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
@@ -2983,11 +2999,13 @@ bool Tracking::TrackLocalMap()
             {
                 Verbose::PrintMess("TLM: PoseInertialOptimizationLastFrame ", Verbose::VERBOSITY_DEBUG);
                 inliers = Optimizer::PoseInertialOptimizationLastFrame(&mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
+                std::cout<<"PoseOptimizationFrame"<<std::endl;
             }
             else
             {
                 Verbose::PrintMess("TLM: PoseInertialOptimizationLastKeyFrame ", Verbose::VERBOSITY_DEBUG);
                 inliers = Optimizer::PoseInertialOptimizationLastKeyFrame(&mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
+                std::cout<<"PoseOptimizationKF"<<std::endl;
             }
         }
     }
@@ -3022,6 +3040,10 @@ bool Tracking::TrackLocalMap()
             else if(mSensor==System::STEREO)
                 mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
         }
+    }
+
+    if(mpAtlas->isImuInitialized()){
+        std::cout<<"Pose Optimization "<<mnMatchesInliers<<std::endl;
     }
 
     // Decide if the tracking was succesful
@@ -3220,6 +3242,7 @@ void Tracking::CreateNewKeyFrame()
 
     if(!mpLocalMapper->SetNotStop(true))
         return;
+    // std::cout<<"Created"<<std::endl;
 
     KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
 
