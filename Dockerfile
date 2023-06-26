@@ -2,6 +2,7 @@ FROM nvidia/cudagl:11.3.0-devel-ubuntu20.04
 
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG UNAME=$USERNAME
 
 RUN apt update -y && apt upgrade -y
 
@@ -79,17 +80,20 @@ RUN cd /tmp && git clone https://github.com/stevenlovegrove/Pangolin && \
 
 # ENTRYPOINT ["/ros_entrypoint.sh"]
 
-RUN useradd -m -s /bin/bash -G sudo eduardo
+RUN useradd -m -s /bin/bash -G sudo chatgpt
 
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> \
     /etc/sudoers
 
-USER eduardo
+USER chatgpt
 
-WORKDIR /home/eduardo
+WORKDIR /home/chatgpt
 CMD /bin/bash
 # # terminal colors with xterm
 # ENV TERM xterm
 # RUN mkdir /ORB_SLAM3
 # WORKDIR /ORB_SLAM3
 # CMD ["bash"]
+#
+
+# nvidia-docker run -it -h lianli -v /home/$USERNAME/:/home/chatgpt/ -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY
