@@ -147,6 +147,9 @@ void LocalMapping::Run()
 
                         bool bLarge = ((mpTracker->GetMatchesInliers()>75)&&mbMonocular)||((mpTracker->GetMatchesInliers()>100)&&!mbMonocular);
                         Optimizer::LocalInertialBA(mpCurrentKeyFrame, &mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA, bLarge, !mpCurrentKeyFrame->GetMap()->GetIniertialBA2());
+                        std::cout <<"KF "<<mpCurrentKeyFrame->mnId<<std::endl;
+                        std::cout << "KF biases "<<mpCurrentKeyFrame->GetImuBias()<<std::endl;
+                        std::cout <<"KF vel "<<mpCurrentKeyFrame->GetVelocity().transpose();
                         b_doneLBA = true;
                     }
                     else
@@ -183,7 +186,7 @@ void LocalMapping::Run()
                     if (mbMonocular)
                         InitializeIMU(1e2, 1e10, true);
                     else{
-                        std::cout<<"Initialize imu!!!"<<std::endl;
+                        // std::cout<<"Initialize imu!!!"<<std::endl;
                         InitializeIMU(1e2, 1e5, true);
                     }
                 }
@@ -218,7 +221,7 @@ void LocalMapping::Run()
                         }
                         else if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA2()){
                             if (mTinit>15.0f){
-                                cout << "start VIBA 2" << endl;
+                                cout << "Start VIBA 2 with "<< mpCurrentKeyFrame->GetMap()->GetAllKeyFrames().size() << endl;
                                 mpCurrentKeyFrame->GetMap()->SetIniertialBA2();
                                 if (mbMonocular)
                                     InitializeIMU(0.f, 0.f, true);
@@ -1199,7 +1202,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     KeyFrame* pKF = mpCurrentKeyFrame;
     while(pKF->mPrevKF)
     {
-        std::cout<<"Pushing "<<pKF->mnId<<" Wiht prev "<<pKF->mPrevKF->mnId<<std::endl;
+        // std::cout<<"Pushing "<<pKF->mnId<<" Wiht prev "<<pKF->mPrevKF->mnId<<std::endl;
         lpKF.push_front(pKF);
         pKF = pKF->mPrevKF;
     }
@@ -1243,10 +1246,14 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
             (*itKF)->SetVelocity(_vel);
             (*itKF)->mPrevKF->SetVelocity(_vel);
         }
+        for(vector<KeyFrame*>::iterator itKF = vpKF.begin(); itKF!=vpKF.end(); itKF++)
+        {
+            std::cout<<(*itKF)->mnId<<" init Kf vel "<<(*itKF)->GetVelocity().transpose()<<std::endl;
+        }
 
         dirG = dirG/dirG.norm();
         Eigen::Vector3f gI(0.0f, 0.0f, -1.0f);
-        std::cout<<"dirG "<<dirG.transpose()<<std::endl;
+        // std::cout<<"dirG "<<dirG.transpose()<<std::endl;
         Eigen::Vector3f v = gI.cross(dirG);
         const float nv = v.norm();
         const float cosg = gI.dot(dirG);
@@ -1285,7 +1292,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     {
         unique_lock<mutex> lock(mpAtlas->GetCurrentMap()->mMutexMapUpdate);
         if ((fabs(mScale - 1.f) > 0.00001) || !mbMonocular) {
-            std::cout<<"Gravity \n"<<mRwg<<std::endl;
+            // std::cout<<"Gravity \n"<<mRwg<<std::endl;
             Sophus::SE3f Twg(mRwg.cast<float>().transpose(), Eigen::Vector3f::Zero());
             mpAtlas->GetCurrentMap()->ApplyScaledRotation(Twg, mScale, true);
             mpTracker->UpdateFrameIMU(mScale, vpKF[0]->GetImuBias(), mpCurrentKeyFrame);
@@ -1398,6 +1405,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
         if(pMP->mnBAGlobalForKF==GBAid)
         {
             // If optimized by Global BA, just update
+            // std::cout<<"pMP->mnBAGlobalForKF==GBAid"<<std::endl;
             pMP->SetWorldPos(pMP->mPosGBA);
         }
         else
@@ -1406,8 +1414,11 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
             KeyFrame* pRefKF = pMP->GetReferenceKeyFrame();
 
             if(pRefKF->mnBAGlobalForKF!=GBAid)
+            {
+                std::cout<<"pRefKF->mnBAGlobalForKF!=GBAid"<<std::endl;
                 continue;
-
+            }
+            std::cout<<"Updating Point with RefKf!!!!!!!!!!!!!"<<std::endl;
             // Map to non-corrected camera
             Eigen::Vector3f Xc = pRefKF->mTcwBefGBA * pMP->GetWorldPos();
 
@@ -1431,8 +1442,8 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     mpTracker->mState=Tracking::OK;
     bInitializing = false;
 
+    std::cout<<"INIT IMU: Mapper: Update map"<<std::endl;
     mpCurrentKeyFrame->GetMap()->IncreaseChangeIndex();
-
     return;
 }
 

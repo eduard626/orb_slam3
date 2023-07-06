@@ -225,6 +225,9 @@ protected:
 
     // Perform preintegration from last frame
     void PreintegrateIMU();
+    void PreintegrateIMU2();
+
+    void ExtractInterframeIMUSamples(const double prev_frame_timestamp, const double current_frame_timestamp);
 
     // Reset IMU biases and compute frame velocity
     void ResetFrameIMU();
@@ -246,6 +249,8 @@ protected:
 
     // Last Bias Estimation (at keyframe creation)
     IMU::Bias mLastBias;
+
+    std::vector<IMU::Point> interframe_imu_samples_; //! Vector of IMU measurements from previous to current frame (to be filled by PreintegrateIMU)
 
     // In case of performing only localization, this flag is true when there are no matches to
     // points in the map. Still tracking will continue if there are enough matches with temporal points.

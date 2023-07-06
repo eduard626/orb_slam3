@@ -35,6 +35,7 @@ ImuCamPose::ImuCamPose(KeyFrame *pKF):its(0)
     else
         num_cams=1;
 
+    // std::cout<<"Cameras KF "<<num_cams<<std::endl;
     tcw.resize(num_cams);
     Rcw.resize(num_cams);
     tcb.resize(num_cams);
@@ -52,10 +53,12 @@ ImuCamPose::ImuCamPose(KeyFrame *pKF):its(0)
     tbc[0] = pKF->mImuCalib.mTbc.translation().cast<double>();
     pCamera[0] = pKF->mpCamera;
     bf = pKF->mbf;
+    // std::cout<<"Baseline "<<bf<<std::endl;
 
     if(num_cams>1)
     {
         Eigen::Matrix4d Trl = pKF->GetRelativePoseTrl().matrix().cast<double>();
+        // std::cout<<"Stereo Tlr \n"<<Trl<<std::endl;
         Rcw[1] = Trl.block<3,3>(0,0) * Rcw[0];
         tcw[1] = Trl.block<3,3>(0,0) * tcw[0] + Trl.block<3,1>(0,3);
         tcb[1] = Trl.block<3,3>(0,0) * tcb[0] + Trl.block<3,1>(0,3);
@@ -82,7 +85,7 @@ ImuCamPose::ImuCamPose(Frame *pF):its(0)
         num_cams=2;
     else
         num_cams=1;
-
+    // std::cout<<"Cameras F "<<num_cams<<std::endl;
     tcw.resize(num_cams);
     Rcw.resize(num_cams);
     tcb.resize(num_cams);
@@ -104,6 +107,7 @@ ImuCamPose::ImuCamPose(Frame *pF):its(0)
     if(num_cams>1)
     {
         Eigen::Matrix4d Trl = pF->GetRelativePoseTrl().matrix().cast<double>();
+        // std::cout<<"Stereo Tlr \n"<<Trl<<std::endl;
         Rcw[1] = Trl.block<3,3>(0,0) * Rcw[0];
         tcw[1] = Trl.block<3,3>(0,0) * tcw[0] + Trl.block<3,1>(0,3);
         tcb[1] = Trl.block<3,3>(0,0) * tcb[0] + Trl.block<3,1>(0,3);
@@ -598,17 +602,23 @@ EdgeInertialGS::EdgeInertialGS(IMU::Preintegrated *pInt):JRg(pInt->JRg.cast<doub
     JPa(pInt->JPa.cast<double>()), mpInt(pInt), dt(pInt->dT)
 {
     // This edge links 8 vertices
+    // std::cout<<"JRg\n"<<JRg<<std::endl;
+    // std::cout<<"JVg\n"<<JVg<<std::endl;
+    // std::cout<<"JPg\n"<<JPg<<std::endl;
+    // std::cout<<"JVa\n"<<JVa<<std::endl;
     resize(8);
     gI << 0, 0, -IMU::GRAVITY_VALUE;
 
     Matrix9d Info = pInt->C.block<9,9>(0,0).cast<double>().inverse();
     Info = (Info+Info.transpose())/2;
+    // std::cout<<"Info \n"<<Info<<std::endl;
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,9,9> > es(Info);
     Eigen::Matrix<double,9,1> eigs = es.eigenvalues();
     for(int i=0;i<9;i++)
         if(eigs[i]<1e-12)
             eigs[i]=0;
     Info = es.eigenvectors()*eigs.asDiagonal()*es.eigenvectors().transpose();
+    // std::cout<<"====== 2 Info \n"<<Info<<std::endl;
     setInformation(Info);
 }
 

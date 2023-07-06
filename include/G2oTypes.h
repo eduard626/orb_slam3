@@ -205,6 +205,7 @@ public:
     virtual void oplusImpl(const double* update_){
         Eigen::Vector3d uv;
         uv << update_[0], update_[1], update_[2];
+        // std::cout<<"Vori "<<estimate().transpose() <<"\nVupd "<<uv.transpose()<<std::endl;
         setEstimate(estimate()+uv);
     }
 };
@@ -226,6 +227,7 @@ public:
     virtual void oplusImpl(const double* update_){
         Eigen::Vector3d ubg;
         ubg << update_[0], update_[1], update_[2];
+        // std::cout<<"Gori "<<estimate().transpose() <<"\nGupd "<<ubg.transpose()<<std::endl;
         setEstimate(estimate()+ubg);
     }
 };
@@ -248,6 +250,7 @@ public:
     virtual void oplusImpl(const double* update_){
         Eigen::Vector3d uba;
         uba << update_[0], update_[1], update_[2];
+        // std::cout<<"Aori "<<estimate().transpose() <<"\nAupd "<<uba.transpose()<<std::endl;
         setEstimate(estimate()+uba);
     }
 };

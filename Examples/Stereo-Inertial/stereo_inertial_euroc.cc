@@ -182,6 +182,9 @@ int main(int argc, char **argv)
     #endif
 
             // Pass the images to the SLAM system
+            // std::cout<<"First stamp going in "<<vTimestampsImu[seq][first_imu[seq]]<<std::endl;
+            // std::cout<<"IMU "<<vImuMeas.size()<<" Image L "<<imLeft.empty()<< " Image R "<<imRight.empty()<<std::endl;
+            // std::cout<<"Image Stamp "<<tframe<<std::endl;
             SLAM.TrackStereo(imLeft,imRight,tframe,vImuMeas);
 
     #ifdef COMPILEDWITHC11

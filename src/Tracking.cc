@@ -50,6 +50,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 {
     // Load camera parameters from settings file
     if(settings){
+        std::cout<<"PARSE CAMERA PARAMS FILE !!!!!!"<<std::endl;
         newParameterLoader(settings);
     }
     else{
@@ -1741,6 +1742,110 @@ void Tracking::PreintegrateIMU()
     //Verbose::PrintMess("Preintegration is finished!! ", Verbose::VERBOSITY_DEBUG);
 }
 
+void Tracking::PreintegrateIMU2()
+{
+    if (!mCurrentFrame.mpPrevFrame)
+    {
+      std::cout<<"No previous frame."<<std::endl;
+      mCurrentFrame.setIntegrated();
+      return;
+    }
+
+    if(!(mCurrentFrame.mpPrevFrame->mTimeStamp > 0.0)) {
+        std::cout<<"Last frame timestamp invalid"<<std::endl;
+        mCurrentFrame.setIntegrated();
+        return;
+    }
+
+    if(mlQueueImuData.empty())
+    {
+        std::cout <<"IMU queue empty."<<std::endl;
+        mCurrentFrame.setIntegrated();
+        return;
+    }
+
+    const double interframe_period = (mCurrentFrame.mTimeStamp - mCurrentFrame.mpPrevFrame->mTimeStamp);
+    const double imu_sampling_period_ = 0.005;
+    interframe_imu_samples_.reserve(1 + interframe_period/imu_sampling_period_);
+    ExtractInterframeIMUSamples(mCurrentFrame.mpPrevFrame->mTimeStamp, mCurrentFrame.mTimeStamp);
+    assert(mCurrentFrame.mpPrevFrame->mTimeStamp<mCurrentFrame.mTimeStamp);
+    // force to drop last one
+    interframe_imu_samples_.pop_back();
+    // interframe_imu_samples_.pop_back();
+        
+    IMU::Preintegrated* pImuPreintegratedFromLastFrame = new IMU::Preintegrated(mLastFrame.mImuBias,mCurrentFrame.mImuCalib);
+
+    // Iterate over the IMU samples and integrate them
+    std::cout<<"IMU preintegration for "<<mCurrentFrame.mnId<<" ts: "<<mCurrentFrame.mTimeStamp<<" Total "<<interframe_imu_samples_.size()<<std::endl;
+    for (auto sample : interframe_imu_samples_) {
+      float tstep = imu_sampling_period_;
+      if (sample.t < mCurrentFrame.mpPrevFrame->mTimeStamp + imu_sampling_period_) {
+        tstep = sample.t - mCurrentFrame.mpPrevFrame->mTimeStamp;
+      }
+      if (sample.t > mCurrentFrame.mTimeStamp) {
+        tstep = mCurrentFrame.mTimeStamp - (sample.t - imu_sampling_period_);
+      }
+      if (sample.t > mCurrentFrame.mTimeStamp +  imu_sampling_period_) {
+        std::cout << "IMU sample time exceeds current frame time by more than one sampling period.\n";
+      }
+      if (tstep <= 0.) {
+        // std::cout << "IMU sample duration is negative.\n";
+        continue;
+      }
+      std::cout<<"ts "<<sample.t<<" a:"<<sample.a.transpose()<<" g:"<<sample.w.transpose()<<std::endl;
+      // std::cout<<"Acc "<<sample.acceleration.transpose()<<std::endl;
+      mpImuPreintegratedFromLastKF->IntegrateNewMeasurement(sample.a, sample.w, tstep);
+      // std::cout<<"Frame"<<std::endl;
+      pImuPreintegratedFromLastFrame->IntegrateNewMeasurement(sample.a, sample.w, tstep);
+    //   std::cout<<"\tA "<<sample.a.transpose()<<std::endl;
+    //   std::cout<<"\tW "<<sample.w.transpose()<<std::endl;
+    //   std::cout<<"\tt "<<tstep<<std::endl;
+    //   std::cout<<"\tavgA "<<pImuPreintegratedFromLastFrame->avgA.transpose()<<std::endl;
+    }
+
+    mCurrentFrame.mpImuPreintegratedFrame = pImuPreintegratedFromLastFrame;
+    // std::cout<<"Preintegrated B "<<mCurrentFrame.GetIMUPreintegratedFrame()->GetOriginalBias()<<std::endl;
+    // std::cout<<"Preintegrated V "<<mCurrentFrame.GetIMUPreintegratedFrame()->GetUpdatedDeltaVelocity().transpose()<<std::endl;
+    // std::cout<<"Preintegrated avgA "<<mCurrentFrame.GetIMUPreintegratedKF()->avgA.transpose() <<std::endl;
+    // std::cout<<"Preintegrated avgW "<<mCurrentFrame.GetIMUPreintegratedKF()->avgW.transpose() <<std::endl;
+    // std::cout<<"avgA "<<mCurrentFrame.mpImuPreintegratedFrame->avgA.transpose()<<std::endl;
+    mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
+    mCurrentFrame.mpLastKeyFrame = mpLastKeyFrame;
+    mCurrentFrame.setIntegrated();
+    // std::cout<<" ================================= "<<std::endl;
+}
+
+
+void Tracking::ExtractInterframeIMUSamples(const double prev_frame_timestamp, const double current_frame_timestamp) {
+  unique_lock<mutex> lock(mMutexImuQueue);
+
+  // Find the first IMU sample with timestamp >= prev_frame_timestamp
+  std::vector<IMU::Point> imu_data_queue_{std::begin(mlQueueImuData), std::end(mlQueueImuData)};
+//   std::cout<<"Measurements "<<imu_data_queue_.size()<<std::endl;
+  auto it_start = imu_data_queue_.begin();
+  while (it_start != imu_data_queue_.end() && it_start->t < prev_frame_timestamp) {
+    ++it_start;
+  }
+
+  // Find the last IMU sample with timestamp < current_frame_timestamp
+  auto it_remove = it_start;
+  while (it_remove != imu_data_queue_.end() && it_remove->t < current_frame_timestamp) {
+    ++it_remove;
+  }
+
+  // If there are samples which cross the frame boundary, use them but don't remove them from the queue
+  auto it_overlap = it_remove;
+  while (it_overlap != imu_data_queue_.end() && it_overlap->t < current_frame_timestamp + 0.005) {
+    ++it_overlap;
+  }
+  // Copy the IMU samples to the interframe IMU samples container
+  interframe_imu_samples_.clear();
+  std::copy(it_start, it_overlap, std::back_inserter(interframe_imu_samples_));
+
+  // Remove the IMU samples from the queue, leaving those with timestamp >= current_frame_timestamp
+  imu_data_queue_.erase(imu_data_queue_.begin(), it_remove);
+}
+
 
 bool Tracking::PredictStateIMU()
 {
@@ -1775,6 +1880,7 @@ bool Tracking::PredictStateIMU()
         const Eigen::Vector3f Vwb1 = mLastFrame.GetVelocity();
         const Eigen::Vector3f Gz(0, 0, -IMU::GRAVITY_VALUE);
         const float t12 = mCurrentFrame.mpImuPreintegratedFrame->dT;
+        std::cout<<"DT current prediction "<<t12<<std::endl;
 
         Eigen::Matrix3f Rwb2 = IMU::NormalizeRotation(Rwb1 * mCurrentFrame.mpImuPreintegratedFrame->GetDeltaRotation(mLastFrame.mImuBias));
         Eigen::Vector3f twb2 = twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1 * mCurrentFrame.mpImuPreintegratedFrame->GetDeltaPosition(mLastFrame.mImuBias);
@@ -1878,7 +1984,7 @@ void Tracking::Track()
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_StartPreIMU = std::chrono::steady_clock::now();
 #endif
-        PreintegrateIMU();
+        PreintegrateIMU2();
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_EndPreIMU = std::chrono::steady_clock::now();
 
@@ -1900,6 +2006,7 @@ void Tracking::Track()
     {
         pCurrentMap->SetLastMapChange(nCurMapChangeIndex);
         mbMapUpdated = true;
+        std::cout<<"Tracking: map updated"<<std::endl;
     }
 
 
@@ -2131,6 +2238,7 @@ void Tracking::Track()
         // If we have an initial estimation of the camera pose and matching. Track the local map.
         if(!mbOnlyTracking)
         {
+            // if(bOK && !pCurrentMap->isImuInitialized())
             if(bOK)
             {
                 bOK = TrackLocalMap();
@@ -2360,6 +2468,7 @@ void Tracking::StereoInitialization()
             if (!mFastInit && estimated_acc<0.5)
             {
                 // cout << "not enough acceleration" << estimated_acc<< endl;
+                // std::cout<<"2 frames not acc "<<mCurrentFrame.mTimeStamp<<" and "<<mLastFrame.mTimeStamp<<std::endl;
                 return;
             }
 
@@ -2370,6 +2479,7 @@ void Tracking::StereoInitialization()
             mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
         }
 
+        std::cout<<"Stereo init with "<<mCurrentFrame.mTimeStamp<<" and "<<mLastFrame.mTimeStamp<<std::endl;
         // Set Frame pose to the origin (In case of inertial SLAM to imu)
         if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
         {
@@ -2379,11 +2489,13 @@ void Tracking::StereoInitialization()
             Vwb0.setZero();
             mCurrentFrame.SetImuPoseVelocity(Rwb0, twb0, Vwb0);
             std::cout<<"Set pose to "<<twb0.transpose()<<std::endl;
+            std::cout<<"Set pose to\n "<<Rwb0<<std::endl;
         }
         // else
             mCurrentFrame.SetPose(Sophus::SE3f());
 
-        // std::cout<<mCurrentFrame.GetPose().translation().transpose()<<std::endl;
+        std::cout<<"initial frame id "<<mCurrentFrame.mnId<<std::endl;
+        std::cout<<"Initi frame at \n"<<mCurrentFrame.GetPose().matrix()<<std::endl;
 
         // Create KeyFrame
         KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
@@ -2788,6 +2900,11 @@ bool Tracking::TrackReferenceKeyFrame()
         }
     }
 
+    std::cout <<"TrackRefKey\nLast: "<<mLastFrame.mnId<<std::endl;
+    std::cout <<"Pose:\n"<<mLastFrame.GetPose().matrix()<<std::endl;
+    std::cout <<"Current "<<mCurrentFrame.mnId<<std::endl;
+    std::cout <<"Pose:\n"<<mCurrentFrame.GetPose().matrix()<<std::endl;
+
     if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
         return true;
     else
@@ -3183,7 +3300,7 @@ bool Tracking::NeedNewKeyFrame()
     // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
     const bool c2 = (((mnMatchesInliers<nRefMatches*thRefRatio || bNeedToInsertClose)) && mnMatchesInliers>15);
 
-    //std::cout << "NeedNewKF: c1a=" << c1a << "; c1b=" << c1b << "; c1c=" << c1c << "; c2=" << c2 << std::endl;
+    std::cout << "\tNeedNewKF: c1a=" << c1a << "; c1b=" << c1b << "; c1c=" << c1c << "; c2=" << c2 << std::endl;
     // Temporal condition for Inertial cases
     bool c3 = false;
     if(mpLastKeyFrame)
@@ -3212,6 +3329,7 @@ bool Tracking::NeedNewKeyFrame()
         // Otherwise send a signal to interrupt BA
         if(bLocalMappingIdle || mpLocalMapper->IsInitializing())
         {
+            std::cout<<"NeedNewKeyFrame: Mapper idle or is initializing"<<std::endl;
             return true;
         }
         else
@@ -3220,19 +3338,28 @@ bool Tracking::NeedNewKeyFrame()
             if(mSensor!=System::MONOCULAR  && mSensor!=System::IMU_MONOCULAR)
             {
                 if(mpLocalMapper->KeyframesInQueue()<3)
+                {
+                    std::cout<<"NeedNewKeyFrame: Mapper Q < 3"<<std::endl;
                     return true;
+                }
                 else
+                {
+                    std::cout << "NeedNewKeyFrame: mapper Q >=3" << std::endl;
                     return false;
+                }
             }
             else
             {
-                //std::cout << "NeedNewKeyFrame: localmap is busy" << std::endl;
+                std::cout << "NeedNewKeyFrame: localmap is busy" << std::endl;
                 return false;
             }
         }
     }
     else
+    {
+        std::cout << "NeedNewKeyFrame: None condition" << std::endl;
         return false;
+    }
 }
 
 void Tracking::CreateNewKeyFrame()
@@ -3260,6 +3387,8 @@ void Tracking::CreateNewKeyFrame()
     }
     else
         Verbose::PrintMess("No last KF in KF creation!!", Verbose::VERBOSITY_NORMAL);
+
+    std::cout<<"\n\nNew KF: "<<pKF->mnId<<" Stamp "<<pKF->mTimeStamp<<"\n"<<"Pre KF: "<<pKF->mPrevKF->mnId<<" Stamp "<<pKF->mPrevKF->mTimeStamp<<std::endl;
 
     // Reset preintegration from last KF (Create new object)
     if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
@@ -3354,8 +3483,8 @@ void Tracking::CreateNewKeyFrame()
         }
     }
 
-
-    mpLocalMapper->InsertKeyFrame(pKF);
+    // if(!mpAtlas->GetCurrentMap()->isImuInitialized() )
+        mpLocalMapper->InsertKeyFrame(pKF);
 
     mpLocalMapper->SetNotStop(false);
 

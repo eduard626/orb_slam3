@@ -267,13 +267,13 @@ void Map::ApplyScaledRotation(const Sophus::SE3f &T, const float s, const bool b
         Sophus::SE3f Tcy = Tyc.inverse();
         pKF->SetPose(Tcy);
         Eigen::Vector3f Vw = pKF->GetVelocity();
-        if(pKF->mnId%2==0)
+        // if(pKF->mnId%2==0)
             std::cout<<"KF "<<pKF->mnId<<"\n\tCurrent V "<<Vw.transpose()<<std::endl;
         if(!bScaledVel)
             pKF->SetVelocity(Ryw*Vw);
         else
             pKF->SetVelocity(Ryw*Vw*s);
-        if(pKF->mnId%2==0)
+        // if(pKF->mnId%2==0)
             std::cout<<"\tRotated V "<<pKF->GetVelocity().transpose()<<std::endl;
 
     }
