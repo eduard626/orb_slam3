@@ -1770,13 +1770,16 @@ void Tracking::PreintegrateIMU2()
     ExtractInterframeIMUSamples(mCurrentFrame.mpPrevFrame->mTimeStamp, mCurrentFrame.mTimeStamp);
     assert(mCurrentFrame.mpPrevFrame->mTimeStamp<mCurrentFrame.mTimeStamp);
     // force to drop last one
-    interframe_imu_samples_.pop_back();
     // interframe_imu_samples_.pop_back();
-        
+    // interframe_imu_samples_.pop_back();
+    // interframe_imu_samples_.erase(interframe_imu_samples_.begin());
+    // interframe_imu_samples_.erase(interframe_imu_samples_.begin());
+
     IMU::Preintegrated* pImuPreintegratedFromLastFrame = new IMU::Preintegrated(mLastFrame.mImuBias,mCurrentFrame.mImuCalib);
 
     // Iterate over the IMU samples and integrate them
-    std::cout<<"IMU preintegration for "<<mCurrentFrame.mnId<<" ts: "<<mCurrentFrame.mTimeStamp<<" Total "<<interframe_imu_samples_.size()<<std::endl;
+    int s=0;
+    // std::cout<<"IMU preintegration for "<<mCurrentFrame.mnId<<" ts: "<<mCurrentFrame.mTimeStamp<<" Total "<<interframe_imu_samples_.size()<<std::endl;
     for (auto sample : interframe_imu_samples_) {
       float tstep = imu_sampling_period_;
       if (sample.t < mCurrentFrame.mpPrevFrame->mTimeStamp + imu_sampling_period_) {
@@ -1786,17 +1789,18 @@ void Tracking::PreintegrateIMU2()
         tstep = mCurrentFrame.mTimeStamp - (sample.t - imu_sampling_period_);
       }
       if (sample.t > mCurrentFrame.mTimeStamp +  imu_sampling_period_) {
-        std::cout << "IMU sample time exceeds current frame time by more than one sampling period.\n";
+        // std::cout << "IMU sample time exceeds current frame time by more than one sampling period.\n";
       }
       if (tstep <= 0.) {
         // std::cout << "IMU sample duration is negative.\n";
         continue;
       }
-      std::cout<<"ts "<<sample.t<<" a:"<<sample.a.transpose()<<" g:"<<sample.w.transpose()<<std::endl;
+    //   std::cout<<"ts "<<sample.t<<" a:"<<sample.a.transpose()<<" g:"<<sample.w.transpose()<<std::endl;
       // std::cout<<"Acc "<<sample.acceleration.transpose()<<std::endl;
       mpImuPreintegratedFromLastKF->IntegrateNewMeasurement(sample.a, sample.w, tstep);
       // std::cout<<"Frame"<<std::endl;
       pImuPreintegratedFromLastFrame->IntegrateNewMeasurement(sample.a, sample.w, tstep);
+      s++;
     //   std::cout<<"\tA "<<sample.a.transpose()<<std::endl;
     //   std::cout<<"\tW "<<sample.w.transpose()<<std::endl;
     //   std::cout<<"\tt "<<tstep<<std::endl;
@@ -1812,6 +1816,7 @@ void Tracking::PreintegrateIMU2()
     mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
     mCurrentFrame.mpLastKeyFrame = mpLastKeyFrame;
     mCurrentFrame.setIntegrated();
+    // std::cout<<"Used "<<s<<" IMU samples "<<std::endl;
     // std::cout<<" ================================= "<<std::endl;
 }
 
@@ -1880,7 +1885,7 @@ bool Tracking::PredictStateIMU()
         const Eigen::Vector3f Vwb1 = mLastFrame.GetVelocity();
         const Eigen::Vector3f Gz(0, 0, -IMU::GRAVITY_VALUE);
         const float t12 = mCurrentFrame.mpImuPreintegratedFrame->dT;
-        std::cout<<"DT current prediction "<<t12<<std::endl;
+        // std::cout<<"DT current prediction "<<t12<<std::endl;
 
         Eigen::Matrix3f Rwb2 = IMU::NormalizeRotation(Rwb1 * mCurrentFrame.mpImuPreintegratedFrame->GetDeltaRotation(mLastFrame.mImuBias));
         Eigen::Vector3f twb2 = twb1 + Vwb1*t12 + 0.5f*t12*t12*Gz+ Rwb1 * mCurrentFrame.mpImuPreintegratedFrame->GetDeltaPosition(mLastFrame.mImuBias);
@@ -2006,7 +2011,7 @@ void Tracking::Track()
     {
         pCurrentMap->SetLastMapChange(nCurMapChangeIndex);
         mbMapUpdated = true;
-        std::cout<<"Tracking: map updated"<<std::endl;
+        // std::cout<<"Tracking: map updated"<<std::endl;
     }
 
 
@@ -2015,8 +2020,8 @@ void Tracking::Track()
         if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD)
         {
             StereoInitialization();
-            if(mState == OK)
-                SetStepByStep(true);
+            // if(mState == OK)
+            //     SetStepByStep(true);
         }
         else
         {
@@ -3116,13 +3121,13 @@ bool Tracking::TrackLocalMap()
             {
                 Verbose::PrintMess("TLM: PoseInertialOptimizationLastFrame ", Verbose::VERBOSITY_DEBUG);
                 inliers = Optimizer::PoseInertialOptimizationLastFrame(&mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
-                std::cout<<"PoseOptimizationFrame"<<std::endl;
+                // std::cout<<"PoseOptimizationFrame"<<std::endl;
             }
             else
             {
                 Verbose::PrintMess("TLM: PoseInertialOptimizationLastKeyFrame ", Verbose::VERBOSITY_DEBUG);
                 inliers = Optimizer::PoseInertialOptimizationLastKeyFrame(&mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
-                std::cout<<"PoseOptimizationKF"<<std::endl;
+                // std::cout<<"PoseOptimizationKF"<<std::endl;
             }
         }
     }
@@ -3159,9 +3164,9 @@ bool Tracking::TrackLocalMap()
         }
     }
 
-    if(mpAtlas->isImuInitialized()){
-        std::cout<<"Pose Optimization "<<mnMatchesInliers<<std::endl;
-    }
+    // if(mpAtlas->isImuInitialized()){
+    //     std::cout<<"Pose Optimization "<<mnMatchesInliers<<std::endl;
+    // }
 
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently
@@ -3300,7 +3305,7 @@ bool Tracking::NeedNewKeyFrame()
     // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
     const bool c2 = (((mnMatchesInliers<nRefMatches*thRefRatio || bNeedToInsertClose)) && mnMatchesInliers>15);
 
-    std::cout << "\tNeedNewKF: c1a=" << c1a << "; c1b=" << c1b << "; c1c=" << c1c << "; c2=" << c2 << std::endl;
+    // std::cout << "\tNeedNewKF: c1a=" << c1a << "; c1b=" << c1b << "; c1c=" << c1c << "; c2=" << c2 << std::endl;
     // Temporal condition for Inertial cases
     bool c3 = false;
     if(mpLastKeyFrame)
@@ -3329,7 +3334,7 @@ bool Tracking::NeedNewKeyFrame()
         // Otherwise send a signal to interrupt BA
         if(bLocalMappingIdle || mpLocalMapper->IsInitializing())
         {
-            std::cout<<"NeedNewKeyFrame: Mapper idle or is initializing"<<std::endl;
+            // std::cout<<"NeedNewKeyFrame: Mapper idle or is initializing"<<std::endl;
             return true;
         }
         else
@@ -3339,25 +3344,25 @@ bool Tracking::NeedNewKeyFrame()
             {
                 if(mpLocalMapper->KeyframesInQueue()<3)
                 {
-                    std::cout<<"NeedNewKeyFrame: Mapper Q < 3"<<std::endl;
+                    // std::cout<<"NeedNewKeyFrame: Mapper Q < 3"<<std::endl;
                     return true;
                 }
                 else
                 {
-                    std::cout << "NeedNewKeyFrame: mapper Q >=3" << std::endl;
+                    // std::cout << "NeedNewKeyFrame: mapper Q >=3" << std::endl;
                     return false;
                 }
             }
             else
             {
-                std::cout << "NeedNewKeyFrame: localmap is busy" << std::endl;
+                // std::cout << "NeedNewKeyFrame: localmap is busy" << std::endl;
                 return false;
             }
         }
     }
     else
     {
-        std::cout << "NeedNewKeyFrame: None condition" << std::endl;
+        // std::cout << "NeedNewKeyFrame: None condition" << std::endl;
         return false;
     }
 }
@@ -3388,7 +3393,7 @@ void Tracking::CreateNewKeyFrame()
     else
         Verbose::PrintMess("No last KF in KF creation!!", Verbose::VERBOSITY_NORMAL);
 
-    std::cout<<"\n\nNew KF: "<<pKF->mnId<<" Stamp "<<pKF->mTimeStamp<<"\n"<<"Pre KF: "<<pKF->mPrevKF->mnId<<" Stamp "<<pKF->mPrevKF->mTimeStamp<<std::endl;
+    // std::cout<<"\n\nNew KF: "<<pKF->mnId<<" Stamp "<<pKF->mTimeStamp<<"\n"<<"Pre KF: "<<pKF->mPrevKF->mnId<<" Stamp "<<pKF->mPrevKF->mTimeStamp<<std::endl;
 
     // Reset preintegration from last KF (Create new object)
     if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)

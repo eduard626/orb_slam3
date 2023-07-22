@@ -54,7 +54,7 @@ class System;
 class Settings;
 
 class Tracking
-{  
+{
 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -226,6 +226,7 @@ protected:
     // Perform preintegration from last frame
     void PreintegrateIMU();
     void PreintegrateIMU2();
+    // std::vector<ORB_SLAM3::IMU::Point> interpolate_or_extrapolate(std::vector<ORB_SLAM3::IMU::Point> data, double start_timestamp, double end_timestamp, int num_samples=10);
 
     void ExtractInterframeIMUSamples(const double prev_frame_timestamp, const double current_frame_timestamp);
 
@@ -278,10 +279,10 @@ protected:
     KeyFrame* mpReferenceKF;
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
-    
+
     // System
     System* mpSystem;
-    
+
     //Drawers
     Viewer* mpViewer;
     FrameDrawer* mpFrameDrawer;

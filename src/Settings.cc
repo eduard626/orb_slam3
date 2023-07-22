@@ -340,7 +340,6 @@ namespace ORB_SLAM3 {
         }
         else{
             cv::Mat cvTlr = readParameter<cv::Mat>(fSettings,"Stereo.T_c1_c2",found);
-            std::cout<<"T_c1_c2\n"<<cvTlr<<std::endl;
             Tlr_ = Converter::toSophus(cvTlr);
 
             //TODO: also search for Trl and invert if necessary
@@ -500,20 +499,20 @@ namespace ORB_SLAM3 {
         cv::Mat R_r1_u1, R_r2_u2;
         cv::Mat P1, P2, Q;
 
-        std::cout<<"Stereorectify K1\n"<<K1<<std::endl;
-        std::cout<<"Distortion 1\n"<<camera1DistortionCoef()<<std::endl;
-        std::cout<<"R12 \n"<<R12<<std::endl;
-        std::cout<<"t12 \n"<<t12<<std::endl;
-        std::cout<<"Stereorectify K2\n"<<K2<<std::endl;
-        std::cout<<"Distortion 2\n"<<camera2DistortionCoef()<<std::endl;
+        // std::cout<<"Stereorectify K1\n"<<K1<<std::endl;
+        // std::cout<<"Distortion 1\n"<<camera1DistortionCoef()<<std::endl;
+        // std::cout<<"R12 \n"<<R12<<std::endl;
+        // std::cout<<"t12 \n"<<t12<<std::endl;
+        // std::cout<<"Stereorectify K2\n"<<K2<<std::endl;
+        // std::cout<<"Distortion 2\n"<<camera2DistortionCoef()<<std::endl;
         cv::stereoRectify(K1,camera1DistortionCoef(),K2,camera2DistortionCoef(),newImSize_,
                           R12, t12,
                           R_r1_u1,R_r2_u2,P1,P2,Q,
                           cv::CALIB_ZERO_DISPARITY,-1,newImSize_);
-        std::cout<<"R1 \n"<<R_r1_u1<<std::endl;
-        std::cout<<"R2 \n"<<R_r2_u2<<std::endl;
-        std::cout<<"P1 \n"<<P1<<std::endl;
-        std::cout<<"P2 \n"<<P2<<std::endl;
+        // std::cout<<"R1 \n"<<R_r1_u1<<std::endl;
+        // std::cout<<"R2 \n"<<R_r2_u2<<std::endl;
+        // std::cout<<"P1 \n"<<P1<<std::endl;
+        // std::cout<<"P2 \n"<<P2<<std::endl;
         cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1.rowRange(0, 3).colRange(0, 3),
                                     newImSize_, CV_32F, M1l_, M2l_);
         cv::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2, P2.rowRange(0, 3).colRange(0, 3),

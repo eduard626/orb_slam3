@@ -147,9 +147,9 @@ void LocalMapping::Run()
 
                         bool bLarge = ((mpTracker->GetMatchesInliers()>75)&&mbMonocular)||((mpTracker->GetMatchesInliers()>100)&&!mbMonocular);
                         Optimizer::LocalInertialBA(mpCurrentKeyFrame, &mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA, bLarge, !mpCurrentKeyFrame->GetMap()->GetIniertialBA2());
-                        std::cout <<"KF "<<mpCurrentKeyFrame->mnId<<std::endl;
-                        std::cout << "KF biases "<<mpCurrentKeyFrame->GetImuBias()<<std::endl;
-                        std::cout <<"KF vel "<<mpCurrentKeyFrame->GetVelocity().transpose();
+                        // std::cout <<"KF "<<mpCurrentKeyFrame->mnId<<std::endl;
+                        // std::cout << "KF biases "<<mpCurrentKeyFrame->GetImuBias()<<std::endl;
+                        // std::cout <<"KF vel "<<mpCurrentKeyFrame->GetVelocity().transpose();
                         b_doneLBA = true;
                     }
                     else
@@ -577,7 +577,7 @@ void LocalMapping::CreateNewMapPoints()
                 cosParallaxStereo2 = cos(2*atan2(pKF2->mb/2,pKF2->mvDepth[idx2]));
 
             if (bStereo1 || bStereo2) totalStereoPts++;
-            
+
             cosParallaxStereo = min(cosParallaxStereo1,cosParallaxStereo2);
 
             Eigen::Vector3f x3D;
@@ -699,7 +699,7 @@ void LocalMapping::CreateNewMapPoints()
             MapPoint* pMP = new MapPoint(x3D, mpCurrentKeyFrame, mpAtlas->GetCurrentMap());
             if (bPointStereo)
                 countStereo++;
-            
+
             pMP->AddObservation(mpCurrentKeyFrame,idx1);
             pMP->AddObservation(pKF2,idx2);
 
@@ -713,7 +713,7 @@ void LocalMapping::CreateNewMapPoints()
             mpAtlas->AddMapPoint(pMP);
             mlpRecentAddedMapPoints.push_back(pMP);
         }
-    }    
+    }
 }
 
 void LocalMapping::SearchInNeighbors()
@@ -1164,7 +1164,7 @@ bool LocalMapping::CheckFinish()
 void LocalMapping::SetFinish()
 {
     unique_lock<mutex> lock(mMutexFinish);
-    mbFinished = true;    
+    mbFinished = true;
     unique_lock<mutex> lock2(mMutexStop);
     mbStopped = true;
 }
@@ -1246,10 +1246,10 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
             (*itKF)->SetVelocity(_vel);
             (*itKF)->mPrevKF->SetVelocity(_vel);
         }
-        for(vector<KeyFrame*>::iterator itKF = vpKF.begin(); itKF!=vpKF.end(); itKF++)
-        {
-            std::cout<<(*itKF)->mnId<<" init Kf vel "<<(*itKF)->GetVelocity().transpose()<<std::endl;
-        }
+        // for(vector<KeyFrame*>::iterator itKF = vpKF.begin(); itKF!=vpKF.end(); itKF++)
+        // {
+        //     std::cout<<(*itKF)->mnId<<" init Kf vel "<<(*itKF)->GetVelocity().transpose()<<std::endl;
+        // }
 
         dirG = dirG/dirG.norm();
         Eigen::Vector3f gI(0.0f, 0.0f, -1.0f);
@@ -1277,7 +1277,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     Optimizer::InertialOptimization(mpAtlas->GetCurrentMap(), mRwg, mScale, mbg, mba, mbMonocular, infoInertial, false, false, priorG, priorA);
 
-    std::cout<<"Biases \nGyro: "<<mbg.transpose()<<"\nAcce: "<<mba.transpose()<<std::endl;
+    // std::cout<<"Biases \nGyro: "<<mbg.transpose()<<"\nAcce: "<<mba.transpose()<<std::endl;
 
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
@@ -1415,10 +1415,10 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
 
             if(pRefKF->mnBAGlobalForKF!=GBAid)
             {
-                std::cout<<"pRefKF->mnBAGlobalForKF!=GBAid"<<std::endl;
+                // std::cout<<"pRefKF->mnBAGlobalForKF!=GBAid"<<std::endl;
                 continue;
             }
-            std::cout<<"Updating Point with RefKf!!!!!!!!!!!!!"<<std::endl;
+            // std::cout<<"Updating Point with RefKf!!!!!!!!!!!!!"<<std::endl;
             // Map to non-corrected camera
             Eigen::Vector3f Xc = pRefKF->mTcwBefGBA * pMP->GetWorldPos();
 
@@ -1442,7 +1442,7 @@ void LocalMapping::InitializeIMU(float priorG, float priorA, bool bFIBA)
     mpTracker->mState=Tracking::OK;
     bInitializing = false;
 
-    std::cout<<"INIT IMU: Mapper: Update map"<<std::endl;
+    // std::cout<<"INIT IMU: Mapper: Update map"<<std::endl;
     mpCurrentKeyFrame->GetMap()->IncreaseChangeIndex();
     return;
 }
@@ -1488,7 +1488,7 @@ void LocalMapping::ScaleRefinement()
         bInitializing=false;
         return;
     }
-    
+
     Sophus::SO3d so3wg(mRwg);
     // Before this line we are not changing the map
     unique_lock<mutex> lock(mpAtlas->GetCurrentMap()->mMutexMapUpdate);

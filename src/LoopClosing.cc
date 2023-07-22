@@ -236,8 +236,8 @@ void LoopClosing::Run()
                         g2o::Sim3 g2oSww_new = g2oTwc*mg2oLoopScw;
 
                         Eigen::Vector3d phi = LogSO3(g2oSww_new.rotation().toRotationMatrix());
-                        cout << "phi = " << phi.transpose() << endl; 
-                        if (fabs(phi(0))<0.008f && fabs(phi(1))<0.008f && fabs(phi(2))<0.349f)
+                        cout << "phi = " << phi.transpose() << endl;
+                        if (fabs(phi(0))<0.01f && fabs(phi(1))<0.01f && fabs(phi(2))<0.349f)
                         {
                             if(mpCurrentKF->GetMap()->IsInertial())
                             {
@@ -255,13 +255,14 @@ void LoopClosing::Run()
                         }
                         else
                         {
-                            cout << "BAD LOOP!!!" << endl;
+                            // cout << "BAD LOOP!!!" << mpCurrentKF->mnId<< endl;
                             bGoodLoop = false;
                         }
 
                     }
 
                     if (bGoodLoop) {
+                        cout << "GOOD LOOP!!!" << mpCurrentKF->mnId<< endl;
 
                         mvpLoopMapPoints = mvpLoopMPs;
 
@@ -373,6 +374,7 @@ bool LoopClosing::NewDetectCommonRegions()
 #endif
     if(mnLoopNumCoincidences > 0)
     {
+        std::cout<<"mnLoopNumCoincidences "<<mnLoopNumCoincidences<<std::endl;
         bCheckSpatial = true;
         // Find from the last KF candidates
         Sophus::SE3d mTcl = (mpCurrentKF->GetPose() * mpLoopLastCurrentKF->GetPoseInverse()).cast<double>();
@@ -461,7 +463,7 @@ bool LoopClosing::NewDetectCommonRegions()
 
 
         }
-    }  
+    }
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_EndEstSim3_1 = std::chrono::steady_clock::now();
 
@@ -488,6 +490,7 @@ bool LoopClosing::NewDetectCommonRegions()
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_StartQuery = std::chrono::steady_clock::now();
 #endif
+        // std::cout<<"First time detection: Detect NBest "<<std::endl;
         mpKeyFrameDB->DetectNBestCandidates(mpCurrentKF, vpLoopBowCand, vpMergeBowCand,3);
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_EndQuery = std::chrono::steady_clock::now();
@@ -504,11 +507,15 @@ bool LoopClosing::NewDetectCommonRegions()
     //Loop candidates
     if(!bLoopDetectedInKF && !vpLoopBowCand.empty())
     {
+        // std::cout<<"First time detection: Common regions BOW "<<std::endl;
         mbLoopDetected = DetectCommonRegionsFromBoW(vpLoopBowCand, mpLoopMatchedKF, mpLoopLastCurrentKF, mg2oLoopSlw, mnLoopNumCoincidences, mvpLoopMPs, mvpLoopMatchedMPs);
+        // std::cout<<"Common regions BOW (mnLoopNumCoincidences):  "<<mnLoopNumCoincidences<<std::endl;
+        // std::cout<<"Loop detected "<<mbLoopDetected<<std::endl;
     }
     // Merge candidates
     if(!bMergeDetectedInKF && !vpMergeBowCand.empty())
     {
+        std::cout<<"First time detection: Common regions BOW (merge) "<<std::endl;
         mbMergeDetected = DetectCommonRegionsFromBoW(vpMergeBowCand, mpMergeMatchedKF, mpMergeLastCurrentKF, mg2oMergeSlw, mnMergeNumCoincidences, mvpMergeMPs, mvpMergeMatchedMPs);
     }
 
@@ -1016,6 +1023,16 @@ void LoopClosing::CorrectLoop()
     Sophus::SE3f Tcw = mpCurrentKF->GetPose();
     g2o::Sim3 g2oScw(Tcw.unit_quaternion().cast<double>(),Tcw.translation().cast<double>(),1.0);
     NonCorrectedSim3[mpCurrentKF]=g2oScw;
+    // std::cout << "Loop correction \nR:\n"<<mg2oLoopScw.rotation().toRotationMatrix()<<"\nT: "<<mg2oLoopScw.translation().transpose()<<std::endl;
+
+    auto pose_diff = mg2oLoopScw * g2oScw.inverse();
+
+    // Compute the corrected drift
+
+    auto corrected_t = pose_diff.translation().norm();
+    auto euler_angles = pose_diff.rotation().toRotationMatrix().eulerAngles(0,1,2);
+    auto corrected_r = ( fabs(euler_angles[0]) + fabs(euler_angles[1]) + fabs(euler_angles[2]) ) / 3.0;
+    std::cout<<"Corrected drift T:"<<corrected_t<<" R: "<<corrected_r<<std::endl;
 
     // Update keyframe pose with corrected Sim3. First transform Sim3 to SE3 (scale translation)
     Sophus::SE3d correctedTcw(mg2oLoopScw.rotation(),mg2oLoopScw.translation() / mg2oLoopScw.scale());
@@ -1062,7 +1079,7 @@ void LoopClosing::CorrectLoop()
                 //Pose without correction
                 g2o::Sim3 g2oSiw(Tiw.unit_quaternion().cast<double>(),Tiw.translation().cast<double>(),1.0);
                 NonCorrectedSim3[pKFi]=g2oSiw;
-            }  
+            }
         }
 
         // Correct all MapPoints obsrved by current keyframe and neighbors, so that they align with the other side of the loop
@@ -1207,7 +1224,7 @@ void LoopClosing::CorrectLoop()
     }
 
     // Loop closed. Release Local Mapping.
-    mpLocalMapper->Release();    
+    mpLocalMapper->Release();
 
     mLastLoopKFid = mpCurrentKF->mnId; //TODO old varible, it is not use in the new algorithm
 }
@@ -2266,7 +2283,7 @@ void LoopClosing::ResetIfRequested()
 }
 
 void LoopClosing::RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoopKF)
-{  
+{
     Verbose::PrintMess("Starting Global Bundle Adjustment", Verbose::VERBOSITY_NORMAL);
 
 #ifdef REGISTER_TIMES
@@ -2442,7 +2459,7 @@ void LoopClosing::RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoop
 
                     //assert(!pKF->mVwbGBA.empty());
                     pKF->SetVelocity(pKF->mVwbGBA);
-                    pKF->SetNewBias(pKF->mBiasGBA);                    
+                    pKF->SetNewBias(pKF->mBiasGBA);
                 }
 
                 lpKFtoCheck.pop_front();
